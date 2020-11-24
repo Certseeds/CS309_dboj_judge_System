@@ -1,0 +1,12 @@
+{
+    "language": 1,
+    "createTable": "DROP TABLE IF EXISTS USER_TABLE;CREATE TABLE USER_TABLE(
+        USER_ID    SERIAL PRIMARY KEY,
+        USERNAME   varchar(100) UNIQUE NOT NULL,
+        PASSWORD   varchar(100)        NOT NULL,
+        USER_LEVEL INT         NOT NULL,
+        EMALL      varchar(100) UNIQUE);insert into USER_TABLE (USERNAME, PASSWORD, USER_LEVEL, EMALL) VALUES ('12345', '67890', 0, 'test@case.com');",
+    "searchTable": "select * from USER_TABLE;",
+    "LimitTime": 1,
+    "limitMemory": 2
+}

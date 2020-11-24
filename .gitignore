@@ -1,0 +1,6 @@
+mysqlTemp/*
+sqliteTemp/*
+postgreSQLTemp/*
+.vscode/*
+__pycache__/*
+*.zip
