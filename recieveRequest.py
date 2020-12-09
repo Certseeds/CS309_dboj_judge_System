@@ -33,7 +33,7 @@ schema = {
         },
     },
     "required": [
-        "language", "createTable", "searchTable", "LimitTime", "limitMemory"
+        "language", "createTable", "searchTable", "limitTime", "limitMemory"
     ]
 }
 # date = {"language": 1, "createTable": "", "searchTable": "", "LimitTime": 1, "limitMemory": 2}
@@ -42,6 +42,7 @@ schema = {
 
 @app.route('/', methods=['POST'])
 def result():
+    print(time.time)
     dockerContain: MysqlDealWithObject
     try:
         dockerContain = docker_array.get()
@@ -51,7 +52,7 @@ def result():
         return
     while time.time() - dockerContain.initTime < 10:
         time.sleep(0.5)
-        print("waiting for {} {}".format(time.time(),dockerContain.initTime))
+        print("waiting for {} {}".format(time.time(), dockerContain.initTime))
     try:
         data = json.loads(request.data)
     except Exception as e:
@@ -61,13 +62,15 @@ def result():
         validate(instance=data, schema=schema)
     except Exception as e:
         print(e)
+        print(type(data['createTable']))
+        print(type(data['searchTable']))
         return
     print(data)
     dockerContain.setvaris(data['createTable'], data['searchTable'],
-                           data['LimitTime'], data['limitMemory'])
-    dockerContain.createFileAndFolder()
+                           data['limitTime'], data['limitMemory'])
     dockerContain.execCommand()
     returned = dockerContain.readResultFromFile()
+    print(returned)
     return Response(returned)
 
 
@@ -88,4 +91,4 @@ if __name__ == "__main__":
     p1 = _thread.start_new_thread(write_queue, (docker_array,))
     #p1 = multiprocessing.Process(target=write_queue, args=(docker_array,))
     # 等待p1写数据进程执行结束后，再往下执行
-    app.run()
+    app.run(host='0.0.0.0')
