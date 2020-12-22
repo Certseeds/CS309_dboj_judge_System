@@ -12,38 +12,42 @@
 constexpr int UNDECIDE = 0;
 constexpr int TLE = 2;
 constexpr int MLE = 3;
-constexpr int RE = 3;
+constexpr int RE = 4;
 constexpr int OK = 0;
-constexpr int NOTOK = 0;
+constexpr int NOTOK = 1;
 // timelimit is second
 // memorylimit is kb
 void setProcessLimit(rlim_t timelimit, rlim_t memory_limit)
 {
-    rlimit Time{.rlim_cur = timelimit, .rlim_max = timelimit / 1000 + 1};
+    rlimit Time;
+    Time.rlim_cur = timelimit;
+    Time.rlim_max = timelimit + 1;
     /* set the time_limit (second)*/
     setrlimit(RLIMIT_CPU, &Time);
 
     rlimit Memory{.rlim_cur = memory_limit * 1024, .rlim_max = memory_limit * 1024 + 1024};
     /* set the memory_limit (b)*/
     setrlimit(RLIMIT_DATA, &Memory);
-    rlimit temp{0, 0};
-    getrlimit(RLIMIT_CPU, &temp);
-    std::cout << temp.rlim_cur << '\n';
     // This steps only limit the system time
     itimerval empty{
         timeval{0, 0}, // it_interval
         timeval{0, 0}  // it_value
     };
     itimerval real{
-        timeval{.tv_sec = timelimit * 2, .tv_usec = 0}, // it_interval
-        timeval{.tv_sec = 0, .tv_usec = 0}              // it_value
+        timeval{.tv_sec = 1, .tv_usec = 0},            // it_interval
+        timeval{.tv_sec = timelimit * 2, .tv_usec = 0} // it_value
     };
     setitimer(ITIMER_REAL, &real, &empty);
     itimerval prof{
-        timeval{.tv_sec = timelimit, .tv_usec = 0}, // it_interval
-        timeval{.tv_sec = 0, .tv_usec = 0}          // it_value
+        timeval{.tv_sec = 0, .tv_usec = 0},            // it_interval
+        timeval{.tv_sec = timelimit * 2, .tv_usec = 0} // it_value
     };
     setitimer(ITIMER_PROF, &prof, &empty);
+    itimerval itimerval_virtual{
+        timeval{.tv_sec = 0, .tv_usec = 0},            // it_interval
+        timeval{.tv_sec = timelimit * 2, .tv_usec = 0} // it_value
+    };
+    setitimer(ITIMER_VIRTUAL, &itimerval_virtual, &empty);
 }
 
 struct result
@@ -54,7 +58,7 @@ struct result
 };
 void monitor(pid_t pid, int timeLimit, int memoryLimit, struct result *rest)
 {
-    auto outputOk = [](std::string path,int value) {
+    auto outputOk = [](std::string path, int value) {
         std::ofstream outfile;
         outfile.open(path.c_str());
         outfile << value << std::endl;
@@ -62,7 +66,8 @@ void monitor(pid_t pid, int timeLimit, int memoryLimit, struct result *rest)
     };
     int status;
     struct rusage ru;
-    if (wait4(pid, &status, 0, &ru) == -1)
+    int runState = wait4(pid, &status, 0, &ru);
+    if (runState == -1)
     {
         printf("wait4 failure");
     }
@@ -70,6 +75,10 @@ void monitor(pid_t pid, int timeLimit, int memoryLimit, struct result *rest)
                       ru.ru_utime.tv_usec / 1000 +
                       ru.ru_stime.tv_sec * 1000 +
                       ru.ru_stime.tv_usec / 1000);
+    outputOk("ruutime_tv_sec", ru.ru_utime.tv_sec * 1000);
+    outputOk("ruutime_tv_usec", ru.ru_utime.tv_usec / 1000);
+    outputOk("rustime_tv_sec", ru.ru_stime.tv_sec * 1000);
+    outputOk("rustime_tv_usec", ru.ru_stime.tv_usec / 1000);
     rest->memoryUsed = ru.ru_maxrss;
     rest->status = UNDECIDE;
     if (WIFSIGNALED(status))
@@ -77,6 +86,7 @@ void monitor(pid_t pid, int timeLimit, int memoryLimit, struct result *rest)
         std::cout << WTERMSIG(status) << std::endl;
         std::cout << rest->timeUsed << " " << timeLimit * 1000 << '\n';
         std::cout << rest->memoryUsed << " " << memoryLimit << '\n';
+        outputOk("./wtermsig", WTERMSIG(status));
         switch (WTERMSIG(status))
         {
         case SIGSEGV:
@@ -114,28 +124,28 @@ void monitor(pid_t pid, int timeLimit, int memoryLimit, struct result *rest)
             }
         }
         }
-        outputOk("./state",NOTOK);
+        outputOk("./state", rest->status);
     }
     else
     {
         if (rest->timeUsed > timeLimit * 900)
         {
             rest->status = TLE;
-            outputOk("./state",NOTOK);
+            outputOk("./state", TLE);
         }
         else if (rest->memoryUsed > memoryLimit * 0.95)
         {
             std::cout << "memoty out size 2" << std::endl;
             rest->status = MLE;
-            outputOk("./state",NOTOK);
+            outputOk("./state", MLE);
         }
         else
         {
-            outputOk("./state",OK);
+            outputOk("./state", OK);
         }
     }
-    outputOk("./cputime",rest->timeUsed);
-    outputOk("./memoryCost",rest->memoryUsed);
+    outputOk("./cputime", rest->timeUsed);
+    outputOk("./memoryCost", rest->memoryUsed);
 }
 
 int main(int argc, char *argv[])
