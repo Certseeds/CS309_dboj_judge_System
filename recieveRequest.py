@@ -6,6 +6,7 @@ import json
 from flask.wrappers import Response
 from jsonschema.validators import validate
 from dockerpyClass import MysqlDealWithObject
+from dockerpySqliteClass import SqliteDealWithObject
 from multiprocessing import Queue
 import _thread
 import time
@@ -45,15 +46,6 @@ def result():
     print(time.time)
     dockerContain: MysqlDealWithObject
     try:
-        dockerContain = docker_array.get()
-    except Exception as e:
-        print(e)
-        print("---队列已空---")
-        return
-    while time.time() - dockerContain.initTime < 10:
-        time.sleep(0.5)
-        print("waiting for {} {}".format(time.time(), dockerContain.initTime))
-    try:
         data = json.loads(request.data)
     except Exception as e:
         print(e)
@@ -65,6 +57,19 @@ def result():
         print(type(data['createTable']))
         print(type(data['searchTable']))
         return
+    languageOfDockerContain = data['language']
+    try:
+        if languageOfDockerContain == 0:
+            dockerContain = Mysql_docker_array.get()
+            while time.time() - dockerContain.initTime < 10:
+                time.sleep(0.5)
+                print("waiting for {} {}".format(time.time(), dockerContain.initTime))
+        elif languageOfDockerContain == 1:
+            dockerContain = Sqlite_docker_array.get()
+    except Exception as e:
+        print(e)
+        print("---队列已空---")
+        return
     print(data)
     dockerContain.setvaris(data['createTable'], data['searchTable'],
                            data['limitTime'], data['limitMemory'])
@@ -74,21 +79,35 @@ def result():
     return Response(returned)
 
 
-def write_queue(queue):
+def MysqlDealWithObject_write_queue(queue):
     while True:
         if queue.full():
-            print("队列已满!")
+            print("Mysql队列已满!")
         else:
             # 向队列中放入消息
             queue.put(MysqlDealWithObject("", "", 0, 0))
         time.sleep(0.5)
 
 
+def dockerpySqliteClass_write_queue(queue):
+    while True:
+        if queue.full():
+            print("Sqlite队列已满!")
+        else:
+            # 向队列中放入消息
+            queue.put(SqliteDealWithObject("", "", 0, 0))
+        time.sleep(0.5)
+
+
 if __name__ == "__main__":
     # 创建消息队列
-    docker_array = multiprocessing.Queue(5)
+    Mysql_docker_array = multiprocessing.Queue(20)
+    Sqlite_docker_array = multiprocessing.Queue(20)
     # 创建子进程
-    p1 = _thread.start_new_thread(write_queue, (docker_array,))
+    p1 = _thread.start_new_thread(
+        MysqlDealWithObject_write_queue, (Mysql_docker_array,))
+    p2 = _thread.start_new_thread(
+        dockerpySqliteClass_write_queue, (Sqlite_docker_array,))
     #p1 = multiprocessing.Process(target=write_queue, args=(docker_array,))
     # 等待p1写数据进程执行结束后，再往下执行
     app.run(host='0.0.0.0')
